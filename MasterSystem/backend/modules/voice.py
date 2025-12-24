@@ -13,6 +13,7 @@ class VoiceModule:
         self.recognizer = sr.Recognizer()
         self.microphone = sr.Microphone()
         self.is_listening = False
+        self.is_speaking = False  # Track speaking state
         self.main_loop = None  # Store reference to main event loop
         
         # Init Pygame Mixer for playback
@@ -36,14 +37,22 @@ class VoiceModule:
 
     def _listen_loop(self):
         with self.microphone as source:
-            self.recognizer.adjust_for_ambient_noise(source)
+            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            logger.info("Voice: Calibrated for ambient noise")
+            
             while self.is_listening:
+                # Skip listening while speaking to prevent self-triggering
+                if self.is_speaking:
+                    import time
+                    time.sleep(0.1)
+                    continue
+                    
                 try:
                     logger.debug("Listening...")
-                    audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=8)
+                    audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
                     logger.debug("Processing Audio...")
                     text = self.recognizer.recognize_google(audio)
-                    if text:
+                    if text and text.strip():
                         logger.info(f"Heard: {text}")
                         # Use the stored main loop reference
                         if self.main_loop:
@@ -62,12 +71,13 @@ class VoiceModule:
         text = event.data.get("text")
         if text:
             await bus.publish(Event(EventType.TTS_SPEAKING_START, {"text": text}))
-            # Run TTS in a way that doesn't block the event loop
-            asyncio.create_task(self._generate_and_play(text))
+            # Run TTS - await completion before marking speaking done
+            await self._generate_and_play(text)
 
     async def _generate_and_play(self, text):
+        self.is_speaking = True
         try:
-            # Professional male voice
+            # Professional male voice - natural and clear
             voice = "en-US-ChristopherNeural" 
             communicate = edge_tts.Communicate(text, voice)
             
@@ -79,23 +89,27 @@ class VoiceModule:
             
             # Play using pygame in a thread to not block
             def play_audio():
-                pygame.mixer.music.load(temp_path)
-                pygame.mixer.music.play()
-                while pygame.mixer.music.get_busy():
-                    pygame.time.wait(100)
-                pygame.mixer.music.unload()
                 try:
-                    os.remove(temp_path)
-                except:
-                    pass
+                    pygame.mixer.music.load(temp_path)
+                    pygame.mixer.music.play()
+                    while pygame.mixer.music.get_busy():
+                        pygame.time.wait(100)
+                    pygame.mixer.music.unload()
+                except Exception as e:
+                    logger.error(f"Audio playback error: {e}")
+                finally:
+                    try:
+                        os.remove(temp_path)
+                    except:
+                        pass
             
             # Run playback in a thread, await its completion
             await asyncio.to_thread(play_audio)
                 
-            await bus.publish(Event(EventType.TTS_SPEAKING_END))
-            
         except Exception as e:
             logger.error(f"TTS/Playback Error: {e}")
+        finally:
+            self.is_speaking = False
             await bus.publish(Event(EventType.TTS_SPEAKING_END))
 
 voice_module = VoiceModule()
