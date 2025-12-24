@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holographic AI Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: transparent;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-app-region: drag;
+        }
+
+        .holographic-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            background: radial-gradient(ellipse at center, 
+                rgba(0, 150, 255, 0.1) 0%, 
+                rgba(0, 50, 150, 0.05) 50%, 
+                transparent 100%);
+            border: 1px solid rgba(0, 150, 255, 0.2);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .status-indicator.online {
+            background: rgba(0, 255, 0, 0.8);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.6);
+        }
+
+        .status-indicator.listening {
+            background: rgba(255, 165, 0, 0.8);
+            box-shadow: 0 0 15px rgba(255, 165, 0, 0.8);
+            animation: pulse 1s infinite;
+        }
+
+        .status-indicator.speaking {
+            background: rgba(0, 150, 255, 0.8);
+            box-shadow: 0 0 20px rgba(0, 150, 255, 0.8);
+            animation: speak-pulse 0.5s infinite;
+        }
+
+        .status-indicator.thinking {
+            background: rgba(255, 255, 0, 0.8);
+            box-shadow: 0 0 15px rgba(255, 255, 0, 0.8);
+            animation: rotate 2s linear infinite;
+        }
+
+        .status-indicator.locked {
+            background: rgba(255, 0, 0, 0.8);
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.6);
+        }
+
+        .status-indicator.authenticated {
+            background: rgba(0, 255, 255, 0.8);
+            box-shadow: 0 0 12px rgba(0, 255, 255, 0.8);
+        }
+
+        .visual-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+        }
+
+        .hologram-core {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .core-ring {
+            position: absolute;
+            border: 2px solid rgba(0, 150, 255, 0.6);
+            border-radius: 50%;
+            animation: rotate 4s linear infinite;
+        }
+
+        .core-ring:nth-child(1) {
+            width: 60px;
+            height: 60px;
+            animation-duration: 3s;
+        }
+
+        .core-ring:nth-child(2) {
+            width: 100px;
+            height: 100px;
+            animation-duration: 4s;
+            animation-direction: reverse;
+        }
+
+        .core-ring:nth-child(3) {
+            width: 140px;
+            height: 140px;
+            animation-duration: 5s;
+        }
+
+        .core-particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(0, 150, 255, 0.8);
+            border-radius: 50%;
+            animation: particle-float 3s ease-in-out infinite;
+        }
+
+        .waveform-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .waveform-bar {
+            width: 3px;
+            background: linear-gradient(to top, 
+                rgba(0, 150, 255, 0.8), 
+                rgba(0, 200, 255, 0.9));
+            border-radius: 2px;
+            animation: waveform 1s ease-in-out infinite;
+        }
+
+        .waveform-bar:nth-child(odd) {
+            animation-delay: 0.1s;
+        }
+
+        .waveform-bar:nth-child(even) {
+            animation-delay: 0.2s;
+        }
+
+        .emotion-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .emotion-indicator.active {
+            opacity: 1;
+        }
+
+        .mode-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            padding: 6px 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .system-info {
+            position: absolute;
+            top: 60px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 10px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .system-info.active {
+            opacity: 1;
+        }
+
+        /* State-specific animations */
+        .listening .core-ring {
+            border-color: rgba(255, 165, 0, 0.8);
+            animation-duration: 1s;
+        }
+
+        .listening .core-particle {
+            background: rgba(255, 165, 0, 0.8);
+            animation-duration: 0.5s;
+        }
+
+        .speaking .core-ring {
+            border-color: rgba(0, 150, 255, 0.9);
+            animation-duration: 0.3s;
+        }
+
+        .speaking .core-particle {
+            background: rgba(0, 150, 255, 0.9);
+            animation-duration: 0.2s;
+        }
+
+        .thinking .core-ring {
+            border-color: rgba(255, 255, 0, 0.8);
+            animation-duration: 0.8s;
+        }
+
+        .thinking .core-particle {
+            background: rgba(255, 255, 0, 0.8);
+            animation-duration: 0.3s;
+        }
+
+        .locked .holographic-container {
+            border-color: rgba(255, 0, 0, 0.4);
+            background: radial-gradient(ellipse at center, 
+                rgba(255, 0, 0, 0.1) 0%, 
+                rgba(150, 0, 0, 0.05) 50%, 
+                transparent 100%);
+        }
+
+        .locked .core-ring {
+            border-color: rgba(255, 0, 0, 0.6);
+            animation: none;
+        }
+
+        .authenticated .core-ring {
+            border-color: rgba(0, 255, 255, 0.8);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+        }
+
+        /* Emotion-specific states */
+        .emotion_calm .core-ring {
+            border-color: rgba(0, 255, 0, 0.6);
+        }
+
+        .emotion_stressed .core-ring {
+            border-color: rgba(255, 165, 0, 0.8);
+            animation-duration: 0.5s;
+        }
+
+        .emotion_angry .core-ring {
+            border-color: rgba(255, 0, 0, 0.8);
+            animation-duration: 0.3s;
+        }
+
+        .emotion_excited .core-ring {
+            border-color: rgba(255, 255, 0, 0.8);
+            animation-duration: 0.4s;
+        }
+
+        .emotion_fatigued .core-ring {
+            border-color: rgba(128, 128, 128, 0.6);
+            animation-duration: 2s;
+        }
+
+        /* Animations */
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+        }
+
+        @keyframes speak-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        @keyframes particle-float {
+            0%, 100% { transform: translateY(0px) scale(1); opacity: 1; }
+            50% { transform: translateY(-20px) scale(1.2); opacity: 0.8; }
+        }
+
+        @keyframes waveform {
+            0%, 100% { height: 10px; }
+            50% { height: 40px; }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 400px) {
+            .visual-center {
+                width: 150px;
+                height: 150px;
+            }
+            
+            .core-ring:nth-child(1) { width: 45px; height: 45px; }
+            .core-ring:nth-child(2) { width: 75px; height: 75px; }
+            .core-ring:nth-child(3) { width: 105px; height: 105px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="holographic-container" id="holographicContainer">
+        <div class="status-indicator" id="statusIndicator"></div>
+        
+        <div class="visual-center">
+            <div class="hologram-core" id="hologramCore">
+                <div class="core-ring"></div>
+                <div class="core-ring"></div>
+                <div class="core-ring"></div>
+                
+                <!-- Floating particles -->
+                <div class="core-particle" style="top: 20%; left: 30%; animation-delay: 0s;"></div>
+                <div class="core-particle" style="top: 70%; left: 20%; animation-delay: 0.5s;"></div>
+                <div class="core-particle" style="top: 30%; left: 70%; animation-delay: 1s;"></div>
+                <div class="core-particle" style="top: 80%; left: 60%; animation-delay: 1.5s;"></div>
+                <div class="core-particle" style="top: 50%; left: 10%; animation-delay: 2s;"></div>
+                <div class="core-particle" style="top: 10%; left: 80%; animation-delay: 2.5s;"></div>
+            </div>
+        </div>
+        
+        <div class="waveform-container" id="waveformContainer">
+            <!-- Waveform bars will be generated by JavaScript -->
+        </div>
+        
+        <div class="emotion-indicator" id="emotionIndicator">
+            <span id="emotionText">Neutral</span>
+        </div>
+        
+        <div class="mode-indicator" id="modeIndicator">
+            <span id="modeText">Monitoring</span>
+        </div>
+        
+        <div class="system-info" id="systemInfo">
+            <div>Voice: <span id="voiceStatus">Ready</span></div>
+            <div>Face: <span id="faceStatus">Scanning</span></div>
+            <div>AI: <span id="aiStatus">Online</span></div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        
+        class HolographicInterface {
+            constructor() {
+                this.currentState = 'online';
+                this.currentEmotion = 'neutral';
+                this.currentMode = 'monitoring';
+                this.isListening = false;
+                this.isSpeaking = false;
+                this.audioLevel = 0;
+                
+                this.initializeElements();
+                this.setupEventListeners();
+                this.generateWaveformBars();
+                this.startAudioVisualization();
+            }
+            
+            initializeElements() {
+                this.container = document.getElementById('holographicContainer');
+                this.statusIndicator = document.getElementById('statusIndicator');
+                this.hologramCore = document.getElementById('hologramCore');
+                this.waveformContainer = document.getElementById('waveformContainer');
+                this.emotionIndicator = document.getElementById('emotionIndicator');
+                this.modeIndicator = document.getElementById('modeIndicator');
+                this.systemInfo = document.getElementById('systemInfo');
+                
+                this.emotionText = document.getElementById('emotionText');
+                this.modeText = document.getElementById('modeText');
+                this.voiceStatus = document.getElementById('voiceStatus');
+                this.faceStatus = document.getElementById('faceStatus');
+                this.aiStatus = document.getElementById('aiStatus');
+            }
+            
+            setupEventListeners() {
+                // Listen for state changes from main process
+                ipcRenderer.on('visual-state-change', (event, state) => {
+                    this.updateVisualState(state);
+                });
+                
+                // Listen for system status updates
+                ipcRenderer.on('system-status-update', (event, status) => {
+                    this.updateSystemStatus(status);
+                });
+                
+                // Listen for audio level updates
+                ipcRenderer.on('audio-level-update', (event, level) => {
+                    this.updateAudioLevel(level);
+                });
+                
+                // Mouse interaction for manual control
+                this.container.addEventListener('click', (e) => {
+                    if (e.ctrlKey) {
+                        this.toggleSystemInfo();
+                    } else {
+                        this.handleClick();
+                    }
+                });
+                
+                // Double-click to toggle listening
+                this.container.addEventListener('dblclick', () => {
+                    this.toggleListening();
+                });
+            }
+            
+            generateWaveformBars() {
+                const barCount = 40;
+                this.waveformContainer.innerHTML = '';
+                
+                for (let i = 0; i < barCount; i++) {
+                    const bar = document.createElement('div');
+                    bar.className = 'waveform-bar';
+                    bar.style.animationDelay = `${i * 0.05}s`;
+                    this.waveformContainer.appendChild(bar);
+                }
+                
+                this.waveformBars = this.waveformContainer.querySelectorAll('.waveform-bar');
+            }
+            
+            updateVisualState(state) {
+                // Remove all state classes
+                this.container.className = 'holographic-container';
+                this.statusIndicator.className = 'status-indicator';
+                this.hologramCore.className = 'hologram-core';
+                
+                // Add new state classes
+                this.container.classList.add(state);
+                this.statusIndicator.classList.add(state);
+                this.hologramCore.classList.add(state);
+                
+                this.currentState = state;
+                
+                // Handle specific state changes
+                if (state.startsWith('emotion_')) {
+                    const emotion = state.replace('emotion_', '');
+                    this.updateEmotionDisplay(emotion);
+                } else if (['listening', 'speaking', 'thinking', 'locked', 'authenticated'].includes(state)) {
+                    this.updateMainState(state);
+                }
+            }
+            
+            updateMainState(state) {
+                switch (state) {
+                    case 'listening':
+                        this.isListening = true;
+                        this.showWaveform(true);
+                        break;
+                    case 'speaking':
+                        this.isSpeaking = true;
+                        this.showWaveform(true);
+                        break;
+                    case 'thinking':
+                        this.showWaveform(false);
+                        break;
+                    case 'locked':
+                        this.showWaveform(false);
+                        this.isListening = false;
+                        break;
+                    case 'authenticated':
+                        this.showAuthenticationEffect();
+                        break;
+                }
+            }
+            
+            updateEmotionDisplay(emotion) {
+                this.currentEmotion = emotion;
+                this.emotionText.textContent = emotion.charAt(0).toUpperCase() + emotion.slice(1);
+                this.emotionIndicator.classList.add('active');
+                
+                // Auto-hide emotion indicator after 3 seconds
+                setTimeout(() => {
+                    this.emotionIndicator.classList.remove('active');
+                }, 3000);
+            }
+            
+            updateMode(mode) {
+                this.currentMode = mode;
+                this.modeText.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+            }
+            
+            updateSystemStatus(status) {
+                this.voiceStatus.textContent = status.isListening ? 'Active' : 'Ready';
+                this.faceStatus.textContent = status.isAuthorized ? 'Verified' : 'Scanning';
+                this.aiStatus.textContent = status.currentMode || 'Online';
+                
+                if (status.emotion) {
+                    this.updateEmotionDisplay(status.emotion.type);
+                }
+                
+                if (status.currentMode) {
+                    this.updateMode(status.currentMode);
+                }
+            }
+            
+            updateAudioLevel(level) {
+                this.audioLevel = level;
+                this.updateWaveformIntensity(level);
+            }
+            
+            updateWaveformIntensity(level) {
+                if (!this.waveformBars) return;
+                
+                const intensity = Math.min(level / 255, 1);
+                const height = 10 + (intensity * 40);
+                
+                this.waveformBars.forEach(bar => {
+                    bar.style.height = `${height}px`;
+                    bar.style.opacity = 0.5 + (intensity * 0.5);
+                });
+            }
+            
+            showWaveform(show) {
+                this.waveformContainer.style.opacity = show ? '1' : '0.3';
+                if (!show) {
+                    this.waveformBars.forEach(bar => {
+                        bar.style.height = '10px';
+                        bar.style.opacity = '0.3';
+                    });
+                }
+            }
+            
+            showAuthenticationEffect() {
+                // Create authentication success effect
+                const particles = this.hologramCore.querySelectorAll('.core-particle');
+                particles.forEach((particle, index) => {
+                    setTimeout(() => {
+                        particle.style.transform = 'scale(2)';
+                        particle.style.background = 'rgba(0, 255, 255, 1)';
+                        
+                        setTimeout(() => {
+                            particle.style.transform = 'scale(1)';
+                            particle.style.background = 'rgba(0, 150, 255, 0.8)';
+                        }, 500);
+                    }, index * 100);
+                });
+            }
+            
+            toggleSystemInfo() {
+                this.systemInfo.classList.toggle('active');
+            }
+            
+            toggleListening() {
+                ipcRenderer.invoke('toggle-listening').then(result => {
+                    // Visual feedback will come through state change events
+                });
+            }
+            
+            handleClick() {
+                // Visual feedback for click
+                this.container.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    this.container.style.transform = 'scale(1)';
+                }, 100);
+            }
+            
+            startAudioVisualization() {
+                // Simulate audio visualization when not receiving real data
+                setInterval(() => {
+                    if (this.isListening || this.isSpeaking) {
+                        const simulatedLevel = Math.random() * 128 + 64;
+                        this.updateAudioLevel(simulatedLevel);
+                    }
+                }, 100);
+            }
+            
+            // Public methods for external control
+            setEmotion(emotion) {
+                this.updateEmotionDisplay(emotion);
+            }
+            
+            setMode(mode) {
+                this.updateMode(mode);
+            }
+            
+            setListening(isListening) {
+                this.isListening = isListening;
+                this.updateVisualState(isListening ? 'listening' : 'online');
+            }
+            
+            setSpeaking(isSpeaking) {
+                this.isSpeaking = isSpeaking;
+                if (isSpeaking) {
+                    this.updateVisualState('speaking');
+                } else if (this.isListening) {
+                    this.updateVisualState('listening');
+                } else {
+                    this.updateVisualState('online');
+                }
+            }
+        }
+        
+        // Initialize the interface
+        const holographicInterface = new HolographicInterface();
+        
+        // Expose interface for testing
+        window.holographicInterface = holographicInterface;
+        
+        // Request initial system status
+        ipcRenderer.invoke('get-system-status').then(status => {
+            holographicInterface.updateSystemStatus(status);
+        });
+    </script>
+</body>
+</html>
