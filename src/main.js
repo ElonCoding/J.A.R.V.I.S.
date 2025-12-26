@@ -1,74 +1,144 @@
 const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
+const { HolographicSpeechProcessor } = require('./services/holographicSpeechProcessor');
+const { SpeechRecognitionService } = require('./services/speechRecognition');
+const { TextToSpeechService } = require('./services/textToSpeech');
+const { NoiseCancellationService } = require('./services/noiseCancellation');
+const { GestureRecognitionService } = require('./services/gestureRecognition');
+const { ConversationMemoryService } = require('./services/conversationMemory');
+const { EmotionAnalysisService } = require('./services/emotionAnalysis');
+const { UserProfileService } = require('./services/userProfile');
+const { MultiUserManager } = require('./services/multiUserManager');
+const { APIManager } = require('./services/apiManager');
 
 // Disable GPU acceleration to prevent crashes
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-software-rasterizer');
 app.commandLine.appendSwitch('disable-gpu-sandbox');
-const { VoiceRecognitionService } = require('./services/voiceRecognition');
-const { AIAssistant } = require('./services/aiAssistant');
-const { EmotionDetectionService } = require('./services/emotionDetection');
-const { FaceRecognitionService } = require('./services/faceRecognition');
-const { TaskAutomationService } = require('./services/taskAutomation');
-const { SmartHomeService } = require('./services/smartHome');
-const { MultiAgentCoordinator } = require('./services/multiAgentCoordinator');
-const { SecurityManager } = require('./services/securityManager');
 
-class HolographicAIAssistant {
+class HolographicSpeechInterface {
     constructor() {
         this.mainWindow = null;
         this.services = {
-            voice: new VoiceRecognitionService(),
-            ai: new AIAssistant(),
-            emotion: new EmotionDetectionService(),
-            face: new FaceRecognitionService(),
-            automation: new TaskAutomationService(),
-            smartHome: new SmartHomeService(),
-            coordinator: new MultiAgentCoordinator(),
-            security: new SecurityManager()
+            holographic: new HolographicSpeechProcessor(),
+            speechRecognition: new SpeechRecognitionService(),
+            textToSpeech: new TextToSpeechService(),
+            noiseCancellation: new NoiseCancellationService(),
+            gestureRecognition: new GestureRecognitionService(),
+            conversationMemory: new ConversationMemoryService(),
+            emotionAnalysis: new EmotionAnalysisService(),
+            userProfile: new UserProfileService(),
+            multiUser: new MultiUserManager(),
+            apiManager: new APIManager()
         };
         this.isListening = false;
-        this.isAuthorized = false;
-        this.currentMode = 'monitoring';
+        this.activeUsers = new Map();
+        this.performanceMetrics = {
+            responseTime: [],
+            recognitionAccuracy: [],
+            noiseReduction: []
+        };
     }
 
     async initialize() {
-        await app.whenReady();
-        await this.createWindow();
-        await this.initializeServices();
-        this.setupEventHandlers();
-        this.startSystem();
+        try {
+            await this.createHolographicWindow();
+            await this.initializeServices();
+            this.setupEventHandlers();
+            this.startPerformanceMonitoring();
+            console.log('Holographic Speech Interface initialized successfully');
+        } catch (error) {
+            console.error('Initialization failed:', error);
+        }
     }
 
-    async createWindow() {
+    async createHolographicWindow() {
         const { width, height } = screen.getPrimaryDisplay().workAreaSize;
         
         this.mainWindow = new BrowserWindow({
-            width: 400,
+            width: 800,
             height: 600,
-            x: width - 420,
-            y: height - 620,
+            x: Math.floor(width / 2 - 400),
+            y: Math.floor(height / 2 - 300),
             frame: false,
             transparent: true,
             alwaysOnTop: true,
-            skipTaskbar: true,
-            resizable: false,
+            skipTaskbar: false,
+            resizable: true,
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
-                enableRemoteModule: true
+                enableRemoteModule: true,
+                webSecurity: false,
+                allowRunningInsecureContent: true
             }
         });
 
-        await this.mainWindow.loadFile('src/ui/index.html');
+        await this.mainWindow.loadFile('src/ui/holographic.html');
         this.mainWindow.setIgnoreMouseEvents(false);
         
         // Set up IPC handlers after window is created
         this.setupIpcHandlers();
+        
+        console.log('Holographic window created successfully');
     }
-    
+
+    async initializeServices() {
+        try {
+            // Initialize services in dependency order
+            await this.services.noiseCancellation.initialize();
+            await this.services.speechRecognition.initialize();
+            await this.services.textToSpeech.initialize();
+            await this.services.holographic.initialize();
+            await this.services.gestureRecognition.initialize();
+            await this.services.conversationMemory.initialize();
+            await this.services.emotionAnalysis.initialize();
+            await this.services.userProfile.initialize();
+            await this.services.multiUser.initialize();
+            await this.services.apiManager.initialize();
+            
+            console.log('All services initialized successfully');
+        } catch (error) {
+            console.error('Service initialization failed:', error);
+            throw error;
+        }
+    }
+
+    setupEventHandlers() {
+        // Speech recognition events
+        this.services.speechRecognition.on('speechDetected', (data) => {
+            this.handleSpeechInput(data);
+        });
+
+        // Gesture recognition events
+        this.services.gestureRecognition.on('gestureDetected', (gesture) => {
+            this.handleGestureInput(gesture);
+        });
+
+        // Multi-user events
+        this.services.multiUser.on('userJoined', (userId) => {
+            this.handleUserJoined(userId);
+        });
+
+        this.services.multiUser.on('userLeft', (userId) => {
+            this.handleUserLeft(userId);
+        });
+
+        // Emotion analysis events
+        this.services.emotionAnalysis.on('emotionDetected', (emotion) => {
+            this.handleEmotionChange(emotion);
+        });
+
+        app.on('window-all-closed', () => {
+            if (process.platform !== 'darwin') {
+                this.cleanup();
+                app.quit();
+            }
+        });
+    }
+
     setupIpcHandlers() {
-        // IPC handlers
+        // IPC handlers for UI communication
         ipcMain.handle('get-system-status', () => {
             return this.getSystemStatus();
         });
@@ -76,202 +146,254 @@ class HolographicAIAssistant {
         ipcMain.handle('toggle-listening', () => {
             this.toggleListening();
         });
+
+        ipcMain.handle('set-wake-word', (event, wakeWord) => {
+            return this.services.speechRecognition.setWakeWord(wakeWord);
+        });
+
+        ipcMain.handle('get-conversation-history', (event, userId) => {
+            return this.services.conversationMemory.getHistory(userId);
+        });
+
+        ipcMain.handle('update-user-profile', (event, userId, profile) => {
+            return this.services.userProfile.updateProfile(userId, profile);
+        });
+
+        ipcMain.handle('perform-api-query', (event, query) => {
+            return this.services.apiManager.performQuery(query);
+        });
     }
 
-    async initializeServices() {
+    async handleSpeechInput(speechData) {
+        const startTime = Date.now();
+        
         try {
-            await this.services.security.initialize();
-            await this.services.face.initialize();
-            await this.services.voice.initialize();
-            await this.services.emotion.initialize();
-            await this.services.automation.initialize();
-            await this.services.smartHome.initialize();
-            await this.services.coordinator.initialize(this.services);
+            // Apply noise cancellation
+            const enhancedAudio = await this.services.noiseCancellation.enhance(speechData.audio);
             
-            console.log('All services initialized successfully');
+            // Extract user ID if available
+            const userId = speechData.userId || 'default';
+            
+            // Get user context
+            const userContext = await this.services.userProfile.getContext(userId);
+            
+            // Analyze emotion
+            const emotion = await this.services.emotionAnalysis.analyzeVoice(enhancedAudio);
+            
+            // Process speech to text
+            const text = await this.services.speechRecognition.recognize(enhancedAudio, {
+                language: userContext.language || 'en-US',
+                context: userContext
+            });
+            
+            // Store in conversation memory
+            await this.services.conversationMemory.addMessage(userId, {
+                type: 'user',
+                text: text,
+                emotion: emotion,
+                timestamp: Date.now()
+            });
+            
+            // Generate response
+            const response = await this.generateResponse(text, userContext, emotion);
+            
+            // Convert response to speech
+            const speechAudio = await this.services.textToSpeech.speak(response.text, {
+                voice: userContext.preferredVoice || 'default',
+                language: userContext.language || 'en-US',
+                emotion: response.emotion
+            });
+            
+            // Apply holographic effects
+            await this.services.holographic.displayResponse(response.text, null);
+            
+            // Store response in memory
+            await this.services.conversationMemory.addMessage(userId, {
+                type: 'assistant',
+                text: response.text,
+                emotion: response.emotion,
+                timestamp: Date.now()
+            });
+            
+            // Update performance metrics
+            const responseTime = Date.now() - startTime;
+            this.updatePerformanceMetrics('responseTime', responseTime);
+            
+            console.log(`Speech interaction completed in ${responseTime}ms`);
+            
         } catch (error) {
-            console.error('Service initialization failed:', error);
+            console.error('Speech processing error:', error);
+            this.handleError(error);
         }
     }
 
-    setupEventHandlers() {
-        // Voice recognition events
-        this.services.voice.on('speechDetected', (text) => {
-            this.handleVoiceInput(text);
+    async generateResponse(userText, userContext, emotion) {
+        // Get conversation history for context
+        const history = await this.services.conversationMemory.getRecentHistory(userContext.userId, 5);
+        
+        // Generate personalized response based on context and emotion
+        const response = await this.services.holographic.generateResponse(userText, {
+            history: history,
+            userContext: userContext,
+            emotion: emotion,
+            language: userContext.language || 'en-US'
         });
-
-        // Face recognition events
-        this.services.face.on('userRecognized', (userId) => {
-            this.handleUserRecognition(userId);
-        });
-
-        this.services.face.on('userAbsent', () => {
-            this.handleUserAbsence();
-        });
-
-        // Emotion detection events
-        this.services.emotion.on('emotionDetected', (emotion) => {
-            this.handleEmotionChange(emotion);
-        });
-
-        app.on('window-all-closed', () => {
-            if (process.platform !== 'darwin') {
-                app.quit();
-            }
-        });
+        
+        return response;
     }
 
-    async startSystem() {
-        console.log('Starting Holographic AI Assistant...');
-        this.updateVisualState('initializing');
+    async handleGestureInput(gesture) {
+        console.log('Gesture detected:', gesture.type);
         
-        // Start face recognition for access control
-        this.services.face.startMonitoring();
-        
-        // Wait for user recognition before full activation
-        await this.waitForUserRecognition();
-        
-        this.updateVisualState('online');
-        this.speak("Identity confirmed. All systems online. How may I assist you, Sir?");
-        
-        // Start monitoring mode
-        this.setMode('monitoring');
-    }
-
-    async waitForUserRecognition() {
-        return new Promise((resolve) => {
-            const checkInterval = setInterval(() => {
-                if (this.isAuthorized) {
-                    clearInterval(checkInterval);
-                    resolve();
-                }
-            }, 1000);
-        });
-    }
-
-    handleVoiceInput(text) {
-        if (!this.isAuthorized) {
-            this.speak("Access denied. Please wait for identity verification.");
-            return;
+        // Map gestures to actions
+        switch (gesture.type) {
+            case 'wave':
+                await this.services.textToSpeech.synthesize('Hello! How can I help you?', { emotion: 'friendly' });
+                break;
+            case 'thumbs_up':
+                await this.services.textToSpeech.synthesize('Thank you!', { emotion: 'positive' });
+                break;
+            case 'stop':
+                this.toggleListening();
+                break;
+            default:
+                console.log('Unknown gesture:', gesture.type);
         }
+    }
 
-        console.log('Voice input detected:', text);
-        this.updateVisualState('thinking');
+    handleUserJoined(userId) {
+        console.log('User joined:', userId);
+        this.activeUsers.set(userId, {
+            joinTime: Date.now(),
+            interactions: 0
+        });
         
-        // Process through multi-agent coordinator
-        this.services.coordinator.processInput(text, {
-            emotion: this.services.emotion.getCurrentEmotion(),
-            mode: this.currentMode,
-            context: this.getContext()
-        }).then(response => {
-            this.handleAIResponse(response);
-        }).catch(error => {
-            console.error('Processing error:', error);
-            this.speak("I encountered an error processing your request.");
-            this.updateVisualState('online');
+        // Welcome new user
+        this.services.textToSpeech.synthesize(`Welcome! I'm ready to assist you.`, {
+            emotion: 'friendly'
         });
     }
 
-    handleAIResponse(response) {
-        console.log('AI Response:', response);
-        
-        // Adjust response based on detected emotion
-        const adjustedResponse = this.services.emotion.adjustResponse(response);
-        
-        this.speak(adjustedResponse.text);
-        
-        if (response.action) {
-            this.executeAction(response.action);
-        }
-        
-        this.updateVisualState('online');
-    }
-
-    handleUserRecognition(userId) {
-        console.log('User recognized:', userId);
-        this.isAuthorized = true;
-        this.updateVisualState('authenticated');
-    }
-
-    handleUserAbsence() {
-        console.log('User absent');
-        this.isAuthorized = false;
-        this.updateVisualState('locked');
-        this.services.automation.lockSensitiveCapabilities();
+    handleUserLeft(userId) {
+        console.log('User left:', userId);
+        this.activeUsers.delete(userId);
     }
 
     handleEmotionChange(emotion) {
         console.log('Emotion detected:', emotion);
-        this.updateVisualState('emotion_' + emotion.type);
-    }
-
-    executeAction(action) {
-        switch (action.type) {
-            case 'system_command':
-                this.services.automation.executeCommand(action.data);
-                break;
-            case 'smart_home':
-                this.services.smartHome.executeCommand(action.data);
-                break;
-            case 'mode_change':
-                this.setMode(action.data.mode);
-                break;
-            default:
-                console.log('Unknown action type:', action.type);
-        }
-    }
-
-    speak(text) {
-        this.updateVisualState('speaking');
-        this.services.voice.speak(text).then(() => {
-            this.updateVisualState('online');
-        });
+        // Update holographic display based on emotion
+        this.services.holographic.updateEmotionDisplay(emotion);
     }
 
     toggleListening() {
         this.isListening = !this.isListening;
+        
         if (this.isListening) {
-            this.services.voice.startListening();
-            this.updateVisualState('listening');
+            this.services.speechRecognition.startListening();
+            this.services.holographic.setListeningState(true);
         } else {
-            this.services.voice.stopListening();
-            this.updateVisualState('online');
+            this.services.speechRecognition.stopListening();
+            this.services.holographic.setListeningState(false);
         }
-    }
-
-    setMode(mode) {
-        this.currentMode = mode;
-        console.log('Mode changed to:', mode);
-        this.updateVisualState(mode);
-        this.speak(`Switched to ${mode} mode.`);
-    }
-
-    updateVisualState(state) {
-        if (this.mainWindow) {
-            this.mainWindow.webContents.send('visual-state-change', state);
-        }
+        
+        console.log('Listening state:', this.isListening);
     }
 
     getSystemStatus() {
         return {
-            isAuthorized: this.isAuthorized,
-            isListening: this.isListening,
-            currentMode: this.currentMode,
-            emotion: this.services.emotion.getCurrentEmotion(),
-            services: this.services.coordinator.getServiceStatus()
+            holographic: this.services.holographic.getStatus(),
+            speechRecognition: this.services.speechRecognition.getStatus(),
+            textToSpeech: this.services.textToSpeech.getStatus(),
+            noiseCancellation: this.services.noiseCancellation.getStatus(),
+            gestureRecognition: this.services.gestureRecognition.getStatus(),
+            conversationMemory: this.services.conversationMemory.getStatus(),
+            emotionAnalysis: this.services.emotionAnalysis.getStatus(),
+            userProfile: this.services.userProfile.getStatus(),
+            multiUser: this.services.multiUser.getStatus(),
+            apiManager: this.services.apiManager.getStatus(),
+            performance: this.getPerformanceMetrics(),
+            activeUsers: this.activeUsers.size,
+            isListening: this.isListening
         };
     }
 
-    getContext() {
+    getPerformanceMetrics() {
         return {
-            time: new Date().toLocaleTimeString(),
-            emotion: this.services.emotion.getCurrentEmotion(),
-            mode: this.currentMode,
-            recentCommands: this.services.coordinator.getRecentCommands()
+            averageResponseTime: this.calculateAverage(this.performanceMetrics.responseTime),
+            averageAccuracy: this.calculateAverage(this.performanceMetrics.recognitionAccuracy),
+            averageNoiseReduction: this.calculateAverage(this.performanceMetrics.noiseReduction),
+            totalInteractions: this.performanceMetrics.responseTime.length
         };
+    }
+
+    calculateAverage(array) {
+        if (array.length === 0) return 0;
+        return array.reduce((sum, val) => sum + val, 0) / array.length;
+    }
+
+    updatePerformanceMetrics(metric, value) {
+        this.performanceMetrics[metric].push(value);
+        
+        // Keep only last 1000 measurements
+        if (this.performanceMetrics[metric].length > 1000) {
+            this.performanceMetrics[metric].shift();
+        }
+    }
+
+    startPerformanceMonitoring() {
+        // Monitor system performance every 5 seconds
+        setInterval(() => {
+            const status = this.getSystemStatus();
+            
+            // Log performance warnings
+            if (status.performance.averageResponseTime > 500) {
+                console.warn('High response time detected:', status.performance.averageResponseTime + 'ms');
+            }
+            
+            if (status.performance.averageAccuracy < 98) {
+                console.warn('Low recognition accuracy detected:', status.performance.averageAccuracy + '%');
+            }
+            
+        }, 5000);
+    }
+
+    handleError(error) {
+        console.error('System error:', error);
+        
+        // Notify user of error
+        this.services.textToSpeech.synthesize('I encountered an error. Please try again.', {
+            emotion: 'apologetic'
+        });
+        
+        // Log error for debugging
+        // In production, this would send to error tracking service
+    }
+
+    cleanup() {
+        console.log('Cleaning up resources...');
+        
+        // Stop all services
+        this.services.speechRecognition.stop();
+        this.services.textToSpeech.stop();
+        this.services.noiseCancellation.stop();
+        this.services.gestureRecognition.stop();
+        this.services.holographic.stop();
+        
+        // Save conversation history
+        this.services.conversationMemory.saveHistory();
+        this.services.userProfile.saveProfiles();
     }
 }
 
 // Initialize the application
-const assistant = new HolographicAIAssistant();
-assistant.initialize().catch(console.error);
+const holographicInterface = new HolographicSpeechInterface();
+
+app.whenReady().then(() => {
+    holographicInterface.initialize();
+});
+
+app.on('before-quit', () => {
+    holographicInterface.cleanup();
+});
+
+module.exports = { HolographicSpeechInterface };

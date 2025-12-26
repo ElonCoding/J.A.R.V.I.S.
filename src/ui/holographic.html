@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holographic Speech Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: transparent;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            color: #00ffff;
+            user-select: none;
+        }
+
+        .holographic-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, rgba(0, 255, 255, 0.1) 0%, transparent 70%);
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-radius: 20px;
+            box-shadow: 
+                0 0 50px rgba(0, 255, 255, 0.5),
+                inset 0 0 50px rgba(0, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .holographic-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: grid-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes grid-pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+
+        .speech-visualizer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+        }
+
+        .voice-waveform {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+        }
+
+        .wave-bar {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            width: 4px;
+            background: linear-gradient(to top, #00ffff, #ffffff);
+            border-radius: 2px;
+            transform-origin: bottom center;
+            animation: wave-animation 0.1s ease-in-out infinite;
+        }
+
+        @keyframes wave-animation {
+            0% { height: 10px; opacity: 0.5; }
+            50% { height: 100px; opacity: 1; }
+            100% { height: 10px; opacity: 0.5; }
+        }
+
+        .holographic-text {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+            animation: text-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes text-glow {
+            0%, 100% { text-shadow: 0 0 20px rgba(0, 255, 255, 0.8); }
+            50% { text-shadow: 0 0 40px rgba(0, 255, 255, 1); }
+        }
+
+        .status-indicators {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: status-pulse 1s ease-in-out infinite;
+        }
+
+        .status-dot.active {
+            background: #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+        }
+
+        .status-dot.inactive {
+            background: #ff0000;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
+        }
+
+        @keyframes status-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        .language-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .language-flag {
+            width: 30px;
+            height: 20px;
+            border-radius: 3px;
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .language-flag:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.8);
+        }
+
+        .language-flag.active {
+            border-color: #00ffff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 1);
+        }
+
+        .user-avatars {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(0, 255, 255, 0.2);
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .user-avatar.active {
+            border-color: #00ffff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+            animation: avatar-pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes avatar-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .performance-metrics {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .metric-item {
+            margin-bottom: 5px;
+        }
+
+        .listening-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            border: 3px solid rgba(0, 255, 255, 0.5);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .listening-indicator.active {
+            opacity: 1;
+            animation: listening-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes listening-pulse {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .emotion-indicator {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="holographic-container">
+        <div class="holographic-grid"></div>
+        
+        <div class="holographic-text" id="statusText">Initializing Holographic Interface...</div>
+        
+        <div class="speech-visualizer">
+            <div class="listening-indicator" id="listeningIndicator"></div>
+            <canvas id="waveformCanvas" class="voice-waveform"></canvas>
+        </div>
+        
+        <div class="language-indicator">
+            <div class="language-flag active" id="en-flag" data-lang="en-US">🇺🇸</div>
+            <div class="language-flag" id="es-flag" data-lang="es-ES">🇪🇸</div>
+            <div class="language-flag" id="zh-flag" data-lang="zh-CN">🇨🇳</div>
+        </div>
+        
+        <div class="status-indicators">
+            <div class="status-indicator">
+                <div class="status-dot inactive" id="speechStatus"></div>
+                <span>Speech Recognition</span>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot inactive" id="noiseStatus"></div>
+                <span>Noise Cancellation</span>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot inactive" id="gestureStatus"></div>
+                <span>Gesture Recognition</span>
+            </div>
+        </div>
+        
+        <div class="performance-metrics" id="performanceMetrics">
+            <div class="metric-item">Response: <span id="responseTime">--</span>ms</div>
+            <div class="metric-item">Accuracy: <span id="accuracy">--</span>%</div>
+            <div class="metric-item">Users: <span id="activeUsers">0</span></div>
+        </div>
+        
+        <div class="user-avatars" id="userAvatars"></div>
+        
+        <div class="emotion-indicator" id="emotionIndicator"></div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        
+        class HolographicInterface {
+            constructor() {
+                this.canvas = document.getElementById('waveformCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.audioContext = null;
+                this.analyser = null;
+                this.dataArray = null;
+                this.isListening = false;
+                this.animationId = null;
+                this.currentLanguage = 'en-US';
+                this.activeUsers = new Map();
+                
+                this.initializeCanvas();
+                this.setupEventListeners();
+                this.startStatusUpdates();
+            }
+            
+            initializeCanvas() {
+                this.canvas.width = 300;
+                this.canvas.height = 300;
+                this.ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+                this.ctx.strokeStyle = '#00ffff';
+                this.ctx.lineWidth = 2;
+            }
+            
+            setupEventListeners() {
+                // Language selection
+                document.querySelectorAll('.language-flag').forEach(flag => {
+                    flag.addEventListener('click', () => {
+                        this.switchLanguage(flag.dataset.lang);
+                    });
+                });
+                
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        this.toggleListening();
+                    }
+                });
+                
+                // IPC events
+                ipcRenderer.on('system-status', (event, status) => {
+                    this.updateStatus(status);
+                });
+                
+                ipcRenderer.on('audio-data', (event, audioData) => {
+                    this.updateWaveform(audioData);
+                });
+                
+                ipcRenderer.on('user-joined', (event, userId) => {
+                    this.addUser(userId);
+                });
+                
+                ipcRenderer.on('user-left', (event, userId) => {
+                    this.removeUser(userId);
+                });
+            }
+            
+            switchLanguage(langCode) {
+                this.currentLanguage = langCode;
+                
+                // Update UI
+                document.querySelectorAll('.language-flag').forEach(flag => {
+                    flag.classList.remove('active');
+                });
+                document.querySelector(`[data-lang="${langCode}"]`).classList.add('active');
+                
+                // Notify main process
+                ipcRenderer.invoke('switch-language', langCode);
+                
+                this.updateStatusText(`Language switched to ${langCode}`);
+            }
+            
+            toggleListening() {
+                this.isListening = !this.isListening;
+                
+                const indicator = document.getElementById('listeningIndicator');
+                const statusDot = document.getElementById('speechStatus');
+                
+                if (this.isListening) {
+                    indicator.classList.add('active');
+                    statusDot.classList.add('active');
+                    statusDot.classList.remove('inactive');
+                    this.updateStatusText('Listening...');
+                    this.startAudioVisualization();
+                } else {
+                    indicator.classList.remove('active');
+                    statusDot.classList.remove('active');
+                    statusDot.classList.add('inactive');
+                    this.updateStatusText('Ready');
+                    this.stopAudioVisualization();
+                }
+                
+                ipcRenderer.invoke('toggle-listening');
+            }
+            
+            startAudioVisualization() {
+                if (!this.audioContext) {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    this.analyser = this.audioContext.createAnalyser();
+                    this.analyser.fftSize = 256;
+                    this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+                }
+                
+                this.animateWaveform();
+            }
+            
+            stopAudioVisualization() {
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+                
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+            
+            animateWaveform() {
+                if (!this.isListening) return;
+                
+                this.animationId = requestAnimationFrame(() => this.animateWaveform());
+                
+                // Simulate audio data if no real audio
+                if (!this.analyser) {
+                    this.drawSimulatedWaveform();
+                    return;
+                }
+                
+                this.analyser.getByteFrequencyData(this.dataArray);
+                this.drawWaveform(this.dataArray);
+            }
+            
+            drawSimulatedWaveform() {
+                const time = Date.now() * 0.01;
+                const centerX = this.canvas.width / 2;
+                const centerY = this.canvas.height / 2;
+                
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw circular waveform
+                this.ctx.beginPath();
+                for (let i = 0; i < 360; i += 2) {
+                    const angle = (i * Math.PI) / 180;
+                    const radius = 50 + Math.sin(time + i * 0.1) * 20;
+                    const x = centerX + Math.cos(angle) * radius;
+                    const y = centerY + Math.sin(angle) * radius;
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                }
+                this.ctx.closePath();
+                this.ctx.stroke();
+            }
+            
+            drawWaveform(dataArray) {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                const centerX = this.canvas.width / 2;
+                const centerY = this.canvas.height / 2;
+                const radius = 80;
+                
+                this.ctx.beginPath();
+                for (let i = 0; i < dataArray.length; i++) {
+                    const angle = (i * 2 * Math.PI) / dataArray.length;
+                    const amplitude = (dataArray[i] / 255) * 50;
+                    const x = centerX + Math.cos(angle) * (radius + amplitude);
+                    const y = centerY + Math.sin(angle) * (radius + amplitude);
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                }
+                this.ctx.closePath();
+                this.ctx.stroke();
+            }
+            
+            updateWaveform(audioData) {
+                if (audioData && audioData.length > 0) {
+                    this.drawWaveform(audioData);
+                }
+            }
+            
+            addUser(userId) {
+                this.activeUsers.set(userId, {
+                    joinTime: Date.now(),
+                    interactions: 0
+                });
+                
+                this.updateUserAvatars();
+            }
+            
+            removeUser(userId) {
+                this.activeUsers.delete(userId);
+                this.updateUserAvatars();
+            }
+            
+            updateUserAvatars() {
+                const container = document.getElementById('userAvatars');
+                container.innerHTML = '';
+                
+                this.activeUsers.forEach((data, userId) => {
+                    const avatar = document.createElement('div');
+                    avatar.className = 'user-avatar active';
+                    avatar.textContent = userId.substring(0, 2).toUpperCase();
+                    avatar.title = `User: ${userId}`;
+                    container.appendChild(avatar);
+                });
+            }
+            
+            updateStatus(status) {
+                // Update performance metrics
+                document.getElementById('responseTime').textContent = 
+                    Math.round(status.performance.averageResponseTime);
+                document.getElementById('accuracy').textContent = 
+                    Math.round(status.performance.averageAccuracy);
+                document.getElementById('activeUsers').textContent = status.activeUsers;
+                
+                // Update status indicators
+                const indicators = {
+                    speechStatus: status.speechRecognition.active,
+                    noiseStatus: status.noiseCancellation.active,
+                    gestureStatus: status.gestureRecognition.active
+                };
+                
+                Object.entries(indicators).forEach(([id, active]) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.classList.toggle('active', active);
+                        element.classList.toggle('inactive', !active);
+                    }
+                });
+                
+                // Update emotion indicator
+                if (status.emotionAnalysis.currentEmotion) {
+                    document.getElementById('emotionIndicator').textContent = 
+                        `Emotion: ${status.emotionAnalysis.currentEmotion}`;
+                }
+            }
+            
+            updateStatusText(text) {
+                document.getElementById('statusText').textContent = text;
+            }
+            
+            startStatusUpdates() {
+                // Request status updates every 2 seconds
+                setInterval(() => {
+                    ipcRenderer.invoke('get-system-status').then(status => {
+                        this.updateStatus(status);
+                    });
+                }, 2000);
+            }
+        }
+        
+        // Initialize the interface
+        window.addEventListener('DOMContentLoaded', () => {
+            new HolographicInterface();
+        });
+    </script>
+</body>
+</html>
