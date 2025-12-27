@@ -427,27 +427,39 @@ class HolographicSpeechProcessor extends EventEmitter {
     triggerResponseAnimation() {
         // Animate hologram for response
         if (this.hologramMesh) {
-            // Scale up briefly
-            const originalScale = this.hologramMesh.scale.clone();
-            this.hologramMesh.scale.multiplyScalar(1.2);
-            
-            setTimeout(() => {
-                if (this.hologramMesh) {
-                    this.hologramMesh.scale.copy(originalScale);
-                }
-            }, 200);
+            // Check if we have a real 3D object or simulation mock
+            if (this.hologramMesh.scale && typeof this.hologramMesh.scale.clone === 'function') {
+                // Real 3D object
+                const originalScale = this.hologramMesh.scale.clone();
+                this.hologramMesh.scale.multiplyScalar(1.2);
+                
+                setTimeout(() => {
+                    if (this.hologramMesh && this.hologramMesh.scale) {
+                        this.hologramMesh.scale.copy(originalScale);
+                    }
+                }, 200);
+            } else {
+                // Simulation mock - just log the action
+                console.log('🎭 Hologram response animation triggered (simulation)');
+            }
         }
         
         // Animate particles
         if (this.particleSystem) {
-            const originalRotation = this.particleSystem.rotation.clone();
-            this.particleSystem.rotation.z += Math.PI * 0.5;
+            if (this.particleSystem.rotation && typeof this.particleSystem.rotation.clone === 'function') {
+                // Real 3D object
+                const originalRotation = this.particleSystem.rotation.clone();
+                this.particleSystem.rotation.z += Math.PI * 0.5;
             
-            setTimeout(() => {
-                if (this.particleSystem) {
-                    this.particleSystem.rotation.copy(originalRotation);
-                }
-            }, 500);
+                setTimeout(() => {
+                    if (this.particleSystem && this.particleSystem.rotation) {
+                        this.particleSystem.rotation.copy(originalRotation);
+                    }
+                }, 500);
+            } else {
+                // Simulation mock - just log the action
+                console.log('✨ Particle response animation triggered (simulation)');
+            }
         }
     }
 
@@ -455,25 +467,53 @@ class HolographicSpeechProcessor extends EventEmitter {
         this.currentEmotion = emotion;
         
         // Update holographic color based on emotion
-        let color = new THREE.Color(0x00ffff); // Default cyan
+        let color;
         
-        switch (emotion) {
-            case 'happy':
-                color = new THREE.Color(0x00ff00); // Green
-                break;
-            case 'sad':
-                color = new THREE.Color(0x0000ff); // Blue
-                break;
-            case 'angry':
-                color = new THREE.Color(0xff0000); // Red
-                break;
-            case 'surprised':
-                color = new THREE.Color(0xffff00); // Yellow
-                break;
-            case 'neutral':
-            default:
-                color = new THREE.Color(0x00ffff); // Cyan
-                break;
+        if (typeof global !== 'undefined' && global.THREE || typeof window !== 'undefined' && window.THREE) {
+            // Browser environment with THREE.js
+            const THREE = global.THREE || window.THREE;
+            color = new THREE.Color(0x00ffff); // Default cyan
+            
+            switch (emotion) {
+                case 'happy':
+                    color = new THREE.Color(0x00ff00); // Green
+                    break;
+                case 'sad':
+                    color = new THREE.Color(0x0000ff); // Blue
+                    break;
+                case 'angry':
+                    color = new THREE.Color(0xff0000); // Red
+                    break;
+                case 'surprised':
+                    color = new THREE.Color(0xffff00); // Yellow
+                    break;
+                case 'neutral':
+                default:
+                    color = new THREE.Color(0x00ffff); // Cyan
+                    break;
+            }
+        } else {
+            // Node.js simulation mode - use RGB values
+            color = { r: 0, g: 1, b: 1 }; // Default cyan
+            
+            switch (emotion) {
+                case 'happy':
+                    color = { r: 0, g: 1, b: 0 }; // Green
+                    break;
+                case 'sad':
+                    color = { r: 0, g: 0, b: 1 }; // Blue
+                    break;
+                case 'angry':
+                    color = { r: 1, g: 0, b: 0 }; // Red
+                    break;
+                case 'surprised':
+                    color = { r: 1, g: 1, b: 0 }; // Yellow
+                    break;
+                case 'neutral':
+                default:
+                    color = { r: 0, g: 1, b: 1 }; // Cyan
+                    break;
+            }
         }
         
         if (this.holographicEffects.hologramShader) {
@@ -588,15 +628,67 @@ class HolographicSpeechProcessor extends EventEmitter {
             cancelAnimationFrame(this.animationFrameId);
         }
         
-        if (this.audioContext) {
+        if (this.audioContext && typeof this.audioContext.close === 'function') {
             this.audioContext.close();
         }
         
-        if (this.renderer) {
+        if (this.renderer && typeof this.renderer.dispose === 'function') {
             this.renderer.dispose();
         }
         
+        this.isInitialized = false;
         console.log('Holographic Speech Processor stopped');
+    }
+
+    setupSimulationMode() {
+        // Simulation mode for Node.js testing without 3D dependencies
+        console.log('Setting up holographic simulation mode');
+        
+        // Create mock objects for testing
+        this.hologramMesh = { visible: true, scale: { set: () => {} }, rotation: { x: 0, y: 0, z: 0 } };
+        this.particleSystem = { visible: true, rotation: { x: 0, y: 0, z: 0 } };
+        this.voiceVisualization = { visible: false, scale: { set: () => {} }, rotation: { z: 0 } };
+        this.renderer = { dispose: () => {} };
+        this.scene = { add: () => {}, remove: () => {} };
+        this.camera = { position: { set: () => {} } };
+        this.audioContext = { state: 'running', createBufferSource: () => ({ connect: () => {}, start: () => {} }) };
+        this.audioAnalyser = { getByteFrequencyData: () => {} };
+        this.frequencyData = new Uint8Array(256);
+        
+        // Mock holographic effects
+        this.holographicEffects = {
+            hologramShader: { uniforms: { color: { value: { r: 0, g: 1, b: 1 } }, time: { value: 0 } } },
+            voiceShader: { uniforms: { audioLevel: { value: 0 }, time: { value: 0 } } },
+            particleShader: { uniforms: { time: { value: 0 } } }
+        };
+        
+        // Start simulation animation loop
+        this.startSimulationAnimation();
+    }
+
+    startSimulationAnimation() {
+        const animate = () => {
+            this.time += 0.016; // ~60fps
+            
+            // Simulate holographic animations
+            if (this.isSpeaking && this.holographicEffects.voiceShader) {
+                this.holographicEffects.voiceShader.uniforms.audioLevel.value = 
+                    0.3 + 0.2 * Math.sin(this.time * 10);
+            }
+            
+            // Simulate particle rotation
+            if (this.particleSystem) {
+                this.particleSystem.rotation.y += 0.002;
+                this.particleSystem.rotation.x += 0.001;
+            }
+            
+            // Continue simulation
+            if (this.isInitialized) {
+                setTimeout(() => animate(), 16);
+            }
+        };
+        
+        animate();
     }
 }
 

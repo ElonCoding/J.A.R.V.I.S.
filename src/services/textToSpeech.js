@@ -246,6 +246,40 @@ class TextToSpeechService extends EventEmitter {
         return utterance;
     }
 
+    updateVoiceParameters(parameters) {
+        if (!this.isInitialized) {
+            throw new Error('Text-to-Speech service not initialized');
+        }
+        
+        // Update configuration
+        if (parameters.rate !== undefined) {
+            this.speechConfig.rate = Math.max(0.1, Math.min(3.0, parameters.rate));
+        }
+        
+        if (parameters.pitch !== undefined) {
+            this.speechConfig.pitch = Math.max(0.1, Math.min(2.0, parameters.pitch));
+        }
+        
+        if (parameters.volume !== undefined) {
+            this.speechConfig.volume = Math.max(0.0, Math.min(1.0, parameters.volume));
+        }
+        
+        if (parameters.voice && this.availableVoices.find(v => v.name === parameters.voice)) {
+            this.currentVoice = parameters.voice;
+            this.speechConfig.voice = parameters.voice;
+        }
+        
+        if (parameters.language && this.supportedLanguages.find(lang => lang.code === parameters.language)) {
+            this.currentLanguage = parameters.language;
+            this.speechConfig.language = parameters.language;
+        }
+        
+        console.log('Voice parameters updated:', this.speechConfig);
+        this.emit('voiceParametersUpdated', this.speechConfig);
+        
+        return this.speechConfig;
+    }
+
     async processVoiceQueue() {
         if (this.voiceQueue.length === 0 || this.isSpeaking) {
             return;

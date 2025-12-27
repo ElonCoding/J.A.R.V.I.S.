@@ -56,25 +56,27 @@ class HolographicSpeechInterface {
         const { width, height } = screen.getPrimaryDisplay().workAreaSize;
         
         this.mainWindow = new BrowserWindow({
-            width: 800,
-            height: 600,
-            x: Math.floor(width / 2 - 400),
-            y: Math.floor(height / 2 - 300),
+            width: 240,
+            height: 240,
+            x: Math.floor(width / 2 - 120),
+            y: Math.floor(height / 2 - 120),
             frame: false,
             transparent: true,
             alwaysOnTop: true,
             skipTaskbar: false,
-            resizable: true,
+            resizable: false,
+            roundedCorners: true,
             webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false,
-                enableRemoteModule: true,
+                nodeIntegration: false,
+                contextIsolation: true,
+                enableRemoteModule: false,
                 webSecurity: false,
-                allowRunningInsecureContent: true
+                allowRunningInsecureContent: true,
+                preload: path.join(__dirname, 'preload.js')
             }
         });
 
-        await this.mainWindow.loadFile('src/ui/holographic.html');
+        await this.mainWindow.loadFile('src/ui/holographic-siri.html');
         this.mainWindow.setIgnoreMouseEvents(false);
         
         // Set up IPC handlers after window is created
@@ -162,12 +164,48 @@ class HolographicSpeechInterface {
         ipcMain.handle('perform-api-query', (event, query) => {
             return this.services.apiManager.performQuery(query);
         });
+
+        // Siri interface communication
+        ipcMain.handle('update-listening-state', (event, isListening) => {
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('listening-state-changed', isListening);
+            }
+        });
+
+        ipcMain.handle('update-speaking-state', (event, isSpeaking) => {
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('speaking-state-changed', isSpeaking);
+            }
+        });
+
+        ipcMain.handle('update-emotion', (event, emotion) => {
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('emotion-updated', emotion);
+            }
+        });
+
+        ipcMain.handle('update-audio-level', (event, level) => {
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('audio-level-updated', level);
+            }
+        });
+
+        ipcMain.handle('show-response', (event, text) => {
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('response-display', text);
+            }
+        });
     }
 
     async handleSpeechInput(speechData) {
         const startTime = Date.now();
         
         try {
+            // Update UI to show listening state
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('listening-state-changed', true);
+            }
+            
             // Apply noise cancellation
             const enhancedAudio = await this.services.noiseCancellation.enhance(speechData.audio);
             
@@ -179,6 +217,11 @@ class HolographicSpeechInterface {
             
             // Analyze emotion
             const emotion = await this.services.emotionAnalysis.analyzeVoice(enhancedAudio);
+            
+            // Update emotion in UI
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('emotion-updated', emotion);
+            }
             
             // Process speech to text
             const text = await this.services.speechRecognition.recognize(enhancedAudio, {
@@ -196,6 +239,13 @@ class HolographicSpeechInterface {
             
             // Generate response
             const response = await this.generateResponse(text, userContext, emotion);
+            
+            // Update UI to show speaking state
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('listening-state-changed', false);
+                this.mainWindow.webContents.send('speaking-state-changed', true);
+                this.mainWindow.webContents.send('response-display', response.text);
+            }
             
             // Convert response to speech
             const speechAudio = await this.services.textToSpeech.speak(response.text, {
@@ -221,9 +271,22 @@ class HolographicSpeechInterface {
             
             console.log(`Speech interaction completed in ${responseTime}ms`);
             
+            // Reset UI state after speaking
+            setTimeout(() => {
+                if (this.mainWindow && this.mainWindow.webContents) {
+                    this.mainWindow.webContents.send('speaking-state-changed', false);
+                }
+            }, 1000);
+            
         } catch (error) {
             console.error('Speech processing error:', error);
             this.handleError(error);
+            
+            // Reset UI state on error
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('listening-state-changed', false);
+                this.mainWindow.webContents.send('speaking-state-changed', false);
+            }
         }
     }
 
@@ -283,6 +346,11 @@ class HolographicSpeechInterface {
         console.log('Emotion detected:', emotion);
         // Update holographic display based on emotion
         this.services.holographic.updateEmotionDisplay(emotion);
+        
+        // Update UI emotion
+        if (this.mainWindow && this.mainWindow.webContents) {
+            this.mainWindow.webContents.send('emotion-updated', emotion);
+        }
     }
 
     toggleListening() {
