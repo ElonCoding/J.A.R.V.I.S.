@@ -54,22 +54,8 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
-coverage/
-*.lcov
 
 # Documentation
 docs/_build/
 *.pdf
 node_modules
-
-# Backup files
-backup_*/
-backup_cleanup_*
-
-# Jest
-coverage/
-jest.config.js
-
-# Temporary files
-*.tmp
-*.temp
